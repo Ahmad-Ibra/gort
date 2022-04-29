@@ -2,17 +2,20 @@ package screens
 
 import (
 	"fmt"
+	"os/exec"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 type lsof struct {
 	command        string
-	processID      int
+	processID      string
 	user           string
 	fileDescriptor string
 	node           string
 	name           string
+	conType        string
 }
 
 type portModel struct {
@@ -23,35 +26,36 @@ type portModel struct {
 	err error
 }
 
-func checkLsof() []lsof {
-	var lines []lsof
+func checkLsof() ([]lsof, error) {
 
-	// TODO: get the actual lsof response and append them to lines
-	testLsof := lsof{
-		command:        "testCommand",
-		processID:      12,
-		user:           "testUser",
-		fileDescriptor: "testFD",
-		node:           "testNode",
-		name:           "testName",
+	cmd := exec.Command("lsof", "-i", "-P")
+	stdout, err := cmd.Output()
+	if err != nil {
+		fmt.Println(err.Error())
+		return nil, err
 	}
 
-	lines = append(lines, testLsof)
-	lines = append(lines, testLsof)
-	lines = append(lines, testLsof)
-	lines = append(lines, testLsof)
-	lines = append(lines, testLsof)
-	lines = append(lines, testLsof)
-	return lines
+	var lines []lsof
+	splitStr := strings.Split(string(stdout), "\n")
+	for _, line := range splitStr {
+		if !strings.Contains(line, "(LISTEN)") && !strings.Contains(line, "(ESTABLISHED)") {
+			continue
+		}
+
+		parts := strings.Fields(line)
+		lines = append(lines, lsof{
+			command:        parts[0],
+			processID:      parts[1],
+			user:           parts[2],
+			fileDescriptor: parts[3],
+			node:           parts[7],
+			name:           parts[8],
+			conType:        parts[9],
+		})
+	}
+
+	return lines, nil
 }
-
-type lsofMsg []lsof
-
-type errMsg struct{ err error }
-
-// For messages that contain errors it's often handy to also implement the
-// error interface on the message.
-func (e errMsg) Error() string { return e.err.Error() }
 
 func (m portModel) Init() tea.Cmd {
 	//return checkLsof
@@ -60,15 +64,6 @@ func (m portModel) Init() tea.Cmd {
 
 func (m portModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-
-	case lsofMsg:
-		// the server returned lines of lsof response, Save to the model
-		m.lines = msg
-		return m, nil
-
-	case errMsg:
-		m.err = msg
-		return m, tea.Quit
 
 	// Is it a key press?
 	case tea.KeyMsg:
@@ -95,7 +90,7 @@ func (m portModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor++
 			}
 
-		// The "enter" key and the spacebar (a literal space) toggle
+		// The space bar (a literal space) toggle
 		// the selected state for the item that the cursor is pointing at.
 		case " ":
 			_, ok := m.selected[m.cursor]
@@ -147,7 +142,8 @@ func (m portModel) View() string {
 			}
 
 			// Render the row
-			s += fmt.Sprintf("%s [%s] %s\n", cursor, checked, choice.name)
+			s += fmt.Sprintf("%s [%s] %s %s, %s %s %s %s %s\n",
+				cursor, checked, choice.command, choice.processID, choice.user, choice.fileDescriptor, choice.node, choice.name, choice.conType)
 		}
 
 		// The footer
@@ -159,9 +155,10 @@ func (m portModel) View() string {
 }
 
 func portInitialModel() portModel {
-	curLines := checkLsof()
+	curLines, err := checkLsof()
 	return portModel{
 		lines:    curLines,
 		selected: make(map[int]lsof),
+		err:      err,
 	}
 }

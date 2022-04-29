@@ -53,8 +53,6 @@ func (m startModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor++
 			}
 
-		// The "enter" key and the spacebar (a literal space) toggle
-		// the selected state for the item that the cursor is pointing at.
 		case "enter":
 			switch m.cursor {
 			case 0:
@@ -70,7 +68,7 @@ func (m startModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m startModel) View() string {
 	// The header
-	s := "What should we buy at the market?\n\n"
+	s := "What would you like to do?\n\n"
 
 	// Iterate over our choices
 	for i, choice := range m.choices {
