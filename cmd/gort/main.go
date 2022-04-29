@@ -5,14 +5,12 @@ import (
 	"os"
 
 	sc "github.com/Ahmad-Ibra/gort/cmd/gort/screens"
-
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 func main() {
-	p := tea.NewProgram(sc.StartInitialModel())
-	if err := p.Start(); err != nil {
-		fmt.Printf("Alas, there's been an error: %v", err)
+	if err := tea.NewProgram(sc.StartInitialModel()).Start(); err != nil {
+		fmt.Printf("Uh oh, there was an error: %v\n", err)
 		os.Exit(1)
 	}
 }

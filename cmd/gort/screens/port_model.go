@@ -7,33 +7,68 @@ import (
 )
 
 type lsof struct {
-	command string
-	processID int
-	user string
+	command        string
+	processID      int
+	user           string
 	fileDescriptor string
-	node string
-	name string
+	node           string
+	name           string
 }
 
 type portModel struct {
-	cursor   int              // which to-do list item our cursor is pointing at
-	lines map[int]lsof // which to-do items are selected
+	cursor   int          // which item the cursor is pointing at
+	lines    []lsof       // list of items
+	selected map[int]lsof // which items are selected
+
+	err error
 }
 
-func portInitialModel() portModel {
-	return portModel{
-		lines:  make(map[int]lsof),
+func checkLsof() []lsof {
+	var lines []lsof
+
+	// TODO: get the actual lsof response and append them to lines
+	testLsof := lsof{
+		command:        "testCommand",
+		processID:      12,
+		user:           "testUser",
+		fileDescriptor: "testFD",
+		node:           "testNode",
+		name:           "testName",
 	}
+
+	lines = append(lines, testLsof)
+	lines = append(lines, testLsof)
+	lines = append(lines, testLsof)
+	lines = append(lines, testLsof)
+	lines = append(lines, testLsof)
+	lines = append(lines, testLsof)
+	return lines
 }
+
+type lsofMsg []lsof
+
+type errMsg struct{ err error }
+
+// For messages that contain errors it's often handy to also implement the
+// error interface on the message.
+func (e errMsg) Error() string { return e.err.Error() }
 
 func (m portModel) Init() tea.Cmd {
-	// Just return `nil`, which means "no I/O right now, please."
-
+	//return checkLsof
 	return nil
 }
 
 func (m portModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+
+	case lsofMsg:
+		// the server returned lines of lsof response, Save to the model
+		m.lines = msg
+		return m, nil
+
+	case errMsg:
+		m.err = msg
+		return m, tea.Quit
 
 	// Is it a key press?
 	case tea.KeyMsg:
@@ -62,8 +97,16 @@ func (m portModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// The "enter" key and the spacebar (a literal space) toggle
 		// the selected state for the item that the cursor is pointing at.
-		case "enter", " ":
-			// TODO: figure out how to kill the process
+		case " ":
+			_, ok := m.selected[m.cursor]
+			if ok {
+				delete(m.selected, m.cursor)
+			} else {
+				m.selected[m.cursor] = m.lines[m.cursor]
+			}
+
+		case "enter":
+			// TODO figure out how to now kill all the things that are selected
 		}
 	}
 
@@ -73,26 +116,52 @@ func (m portModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m portModel) View() string {
-	// The header
-	s := "Here's the open ports:\n\n"
-
-	// make request for ports
-	// Iterate over our choices
-	for i, line := range m.lines {
-
-		// Is the cursor pointing at this choice?
-		cursor := " " // no cursor
-		if m.cursor == i {
-			cursor = ">" // cursor!
-		}
-
-		// Render the row
-		s += fmt.Sprintf("%s %s\n", cursor, line.name)
+	// If there's an error, print it out and don't do anything else.
+	if m.err != nil {
+		return fmt.Sprintf("\nWe had some trouble: %v\n\n", m.err)
 	}
 
-	// The footer
-	s += "\nPress q to quit and b to go back.\n"
+	s := ""
+
+	if len(m.lines) <= 0 {
+		// Tell the user we're doing something.
+		s = fmt.Sprintf("Checking ports ... \n")
+	} else {
+		// The header
+		s = "Select port to kill with space bar. Once done hit enter to kill them:\n\n"
+
+		// make request for ports
+		// Iterate over our choices
+		for i, choice := range m.lines {
+
+			// Is the cursor pointing at this choice?
+			cursor := " " // no cursor
+			if m.cursor == i {
+				cursor = ">" // cursor!
+			}
+
+			// Is this choice selected?
+			checked := " " // not selected
+			if _, ok := m.selected[i]; ok {
+				checked = "x" // selected!
+			}
+
+			// Render the row
+			s += fmt.Sprintf("%s [%s] %s\n", cursor, checked, choice.name)
+		}
+
+		// The footer
+		s += "\nPress q to quit and b to go back.\n"
+	}
 
 	// Send the UI for rendering
 	return s
+}
+
+func portInitialModel() portModel {
+	curLines := checkLsof()
+	return portModel{
+		lines:    curLines,
+		selected: make(map[int]lsof),
+	}
 }

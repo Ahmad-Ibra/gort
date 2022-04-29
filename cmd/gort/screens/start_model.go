@@ -8,24 +8,18 @@ import (
 
 const (
 	startListProcs = "List all processes running on a port"
-	startOther1    = "Some other choice"
-	startOther2    = "And another"
+	startOther1    = "Some other action"
+	startOther2    = "And another action"
 )
 
 type startModel struct {
 	choices  []string         // items on the to-do list
 	cursor   int              // which to-do list item our cursor is pointing at
-	selected map[int]struct{} // which to-do items are selected
 }
 
 func StartInitialModel() startModel {
 	return startModel{
 		choices: []string{startListProcs, startOther1, startOther2},
-
-		// A map which indicates which choices are selected. We're using
-		// the  map like a mathematical set. The keys refer to the indexes
-		// of the `choices` slice, above.
-		selected: make(map[int]struct{}),
 	}
 }
 
@@ -61,17 +55,10 @@ func (m startModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// The "enter" key and the spacebar (a literal space) toggle
 		// the selected state for the item that the cursor is pointing at.
-		case "enter", " ":
+		case "enter":
 			switch m.cursor {
 			case 0:
 				return portInitialModel(), nil
-			default:
-				_, ok := m.selected[m.cursor]
-				if ok {
-					delete(m.selected, m.cursor)
-				} else {
-					m.selected[m.cursor] = struct{}{}
-				}
 			}
 		}
 	}
@@ -94,14 +81,8 @@ func (m startModel) View() string {
 			cursor = ">" // cursor!
 		}
 
-		// Is this choice selected?
-		checked := " " // not selected
-		if _, ok := m.selected[i]; ok {
-			checked = "x" // selected!
-		}
-
 		// Render the row
-		s += fmt.Sprintf("%s [%s] %s\n", cursor, checked, choice)
+		s += fmt.Sprintf("%s %s\n", cursor, choice)
 	}
 
 	// The footer
