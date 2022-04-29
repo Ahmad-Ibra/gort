@@ -45,18 +45,22 @@ func checkProcesses() tea.Msg {
 
 	var lines []Process
 	splitStr := strings.Split(string(stdout), "\n")
-	for _, line := range splitStr {
-		if !strings.Contains(line, "(LISTEN)") && !strings.Contains(line, "(ESTABLISHED)") {
+	for i, line := range splitStr {
+		if i == 0 || line == "" {
 			continue
 		}
 		parts := strings.Fields(line)
+		connectionType := ""
+		if len(parts) > 9 {
+			connectionType = parts[9]
+		}
 		lines = append(lines, Process{
 			command:   parts[0],
 			processID: parts[1],
 			user:      parts[2],
 			node:      parts[7],
 			name:      parts[8],
-			conType:   parts[9],
+			conType:   connectionType,
 		})
 	}
 
