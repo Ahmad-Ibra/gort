@@ -1,7 +1,4 @@
 # Gort
-
-## Description
-
 A simple cli app to kill processes listening on your ports.
 It was mostly used as a way to try out [bubbletea](https://github.com/charmbracelet/bubbletea).
 
@@ -17,4 +14,4 @@ go build
 ```
 
 ### License
-MIT
+[MIT](https://github.com/Ahmad-Ibra/gort/blob/main/LICENSE.md)
