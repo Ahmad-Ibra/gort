@@ -8,7 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-type lsof struct {
+type Lsof struct {
 	command        string
 	processID      string
 	user           string
@@ -18,32 +18,29 @@ type lsof struct {
 	conType        string
 }
 
-type portModel struct {
+type Model struct {
 	cursor   int          // which item the cursor is pointing at
-	lines    []lsof       // list of items
-	selected map[int]lsof // which items are selected
+	lines    []Lsof       // list of items
+	Selected map[int]Lsof // which items are selected
 
 	err error
 }
 
-func checkLsof() ([]lsof, error) {
-
-	cmd := exec.Command("lsof", "-i", "-P")
+func checkLsof() tea.Msg {
+	cmd := exec.Command("Lsof", "-i", "-P")
 	stdout, err := cmd.Output()
 	if err != nil {
-		fmt.Println(err.Error())
-		return nil, err
+		return errMsg{err}
 	}
 
-	var lines []lsof
+	var lines []Lsof
 	splitStr := strings.Split(string(stdout), "\n")
 	for _, line := range splitStr {
 		if !strings.Contains(line, "(LISTEN)") && !strings.Contains(line, "(ESTABLISHED)") {
 			continue
 		}
-
 		parts := strings.Fields(line)
-		lines = append(lines, lsof{
+		lines = append(lines, Lsof{
 			command:        parts[0],
 			processID:      parts[1],
 			user:           parts[2],
@@ -54,74 +51,75 @@ func checkLsof() ([]lsof, error) {
 		})
 	}
 
-	return lines, nil
+	return lsofMsg(lines)
 }
 
-func (m portModel) Init() tea.Cmd {
-	//return checkLsof
-	return nil
+type lsofMsg []Lsof
+
+type errMsg struct{ err error }
+
+// For messages that contain errors it's often handy to also implement the
+// error interface on the message.
+func (e errMsg) Error() string { return e.err.Error() }
+
+func (m Model) Init() tea.Cmd {
+	return checkLsof
 }
 
-func (m portModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-
+	case lsofMsg:
+		m.lines = msg
+		return m, nil
+	case errMsg:
+		// There was an error. Note it in the model. And tell the runtime
+		// we're done and want to quit.
+		m.err = msg
+		return m, tea.Quit
 	// Is it a key press?
 	case tea.KeyMsg:
-
 		// Cool, what was the actual key pressed?
 		switch msg.String() {
-
 		// These keys should exit the program.
 		case "ctrl+c", "q":
 			return m, tea.Quit
-
-		case "b":
-			return StartInitialModel(), nil
-
 		// The "up" and "k" keys move the cursor up
 		case "up", "k":
 			if m.cursor > 0 {
 				m.cursor--
 			}
-
 		// The "down" and "j" keys move the cursor down
 		case "down", "j":
 			if m.cursor < len(m.lines)-1 {
 				m.cursor++
 			}
-
 		// The space bar (a literal space) toggle
 		// the selected state for the item that the cursor is pointing at.
 		case " ":
-			_, ok := m.selected[m.cursor]
+			_, ok := m.Selected[m.cursor]
 			if ok {
-				delete(m.selected, m.cursor)
+				delete(m.Selected, m.cursor)
 			} else {
-				m.selected[m.cursor] = m.lines[m.cursor]
+				m.Selected[m.cursor] = m.lines[m.cursor]
 			}
-
 		case "enter":
 			// TODO figure out how to now kill all the things that are selected
 		}
 	}
-
 	// Return the updated model to the Bubble Tea runtime for processing.
 	// Note that we're not returning a command.
 	return m, nil
 }
 
-func (m portModel) View() string {
+func (m Model) View() string {
 	// If there's an error, print it out and don't do anything else.
 	if m.err != nil {
 		return fmt.Sprintf("\nWe had some trouble: %v\n\n", m.err)
 	}
+	// Tell the user we're doing something.
+	s := fmt.Sprintf("Checking ports, this could take a moment... \n")
 
-	s := ""
-
-	if len(m.lines) <= 0 {
-		// Tell the user we're doing something.
-		s = fmt.Sprintf("Checking ports ... \n")
-	} else {
+	if len(m.lines) > 0 {
 		// The header
 		s = "Select port to kill with space bar. Once done hit enter to kill them:\n\n"
 
@@ -137,7 +135,7 @@ func (m portModel) View() string {
 
 			// Is this choice selected?
 			checked := " " // not selected
-			if _, ok := m.selected[i]; ok {
+			if _, ok := m.Selected[i]; ok {
 				checked = "x" // selected!
 			}
 
@@ -145,20 +143,10 @@ func (m portModel) View() string {
 			s += fmt.Sprintf("%s [%s] %s %s, %s %s %s %s %s\n",
 				cursor, checked, choice.command, choice.processID, choice.user, choice.fileDescriptor, choice.node, choice.name, choice.conType)
 		}
-
 		// The footer
-		s += "\nPress q to quit and b to go back.\n"
+		s += "\nPress q to quit.\n"
 	}
 
 	// Send the UI for rendering
 	return s
-}
-
-func portInitialModel() portModel {
-	curLines, err := checkLsof()
-	return portModel{
-		lines:    curLines,
-		selected: make(map[int]lsof),
-		err:      err,
-	}
 }
