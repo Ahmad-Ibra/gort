@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	if err := tea.NewProgram(sc.Model{Selected: make(map[int]sc.Lsof)}).Start(); err != nil {
+	if err := tea.NewProgram(sc.CreateModel()).Start(); err != nil {
 		fmt.Printf("Uh oh, there was an error: %v\n", err)
 		os.Exit(1)
 	}
