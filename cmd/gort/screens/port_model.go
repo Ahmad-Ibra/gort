@@ -27,7 +27,8 @@ type Model struct {
 	err error
 }
 
-var killedMutex = sync.RWMutex{}
+var sliceMutex = sync.RWMutex{}
+var mapMutex = sync.RWMutex{}
 
 func CreateModel() Model {
 	return Model{
@@ -64,12 +65,23 @@ func checkProcesses() tea.Msg {
 
 func scheduleKill(processes map[int]Process) tea.Cmd {
 
-	var killed []Process
+	var kProcs []Process
+
+	// key is the PID of a killed process
+	killed := make(map[string]bool)
 	return func() tea.Msg {
 
 		var wg sync.WaitGroup
 		for _, p := range processes {
 			curProc := p
+			mapMutex.Lock()
+			if killed[curProc.processID] {
+				mapMutex.Unlock()
+				continue
+			}
+			killed[curProc.processID] = true
+			mapMutex.Unlock()
+
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -82,13 +94,13 @@ func scheduleKill(processes map[int]Process) tea.Cmd {
 				//}
 
 
-				killedMutex.Lock()
-				killed = append(killed, curProc)
-				killedMutex.Unlock()
+				sliceMutex.Lock()
+				kProcs = append(kProcs, curProc)
+				sliceMutex.Unlock()
 			}()
 		}
 		wg.Wait()
-		return killedMsg(killed)
+		return killedMsg(kProcs)
 	}
 }
 
@@ -206,13 +218,13 @@ func (m Model) View() string {
 		s = "The following processes have been killed:\n\n"
 
 		// Render the row
-		s += fmt.Sprintf("%10s %7s %10s %4s %14s %s\n",
-			"COMMAND", "PID", "USER", "NODE", "", "NAME")
+		s += fmt.Sprintf("%10s %7s\n",
+			"COMMAND", "PID")
 
 		for _, p := range m.killed {
 			// Render the row
-			s += fmt.Sprintf("%10s %7s %10s %4s %14s %s\n",
-				p.command, p.processID, p.user, p.node, p.conType, p.name)
+			s += fmt.Sprintf("%10s %7s\n",
+				p.command, p.processID)
 		}
 		// The footer
 		s += "\nPress any key to quit.\n"
