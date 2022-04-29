@@ -10,19 +10,19 @@ import (
 )
 
 type Process struct {
-	command        string
-	processID      string
-	user           string
-	node           string
-	name           string
-	conType        string
+	command   string
+	processID string
+	user      string
+	node      string
+	name      string
+	conType   string
 }
 
 type Model struct {
 	cursor   int             // which item the cursor is pointing at
 	lines    []Process       // list of running processes that are running
 	selected map[int]Process // which items are selected, used to figure out which processes to kill
-	killed   []Process 		// list of processes that have been killed
+	killed   []Process       // list of processes that have been killed
 
 	err error
 }
@@ -51,12 +51,12 @@ func checkProcesses() tea.Msg {
 		}
 		parts := strings.Fields(line)
 		lines = append(lines, Process{
-			command:        parts[0],
-			processID:      parts[1],
-			user:           parts[2],
-			node:           parts[7],
-			name:           parts[8],
-			conType:        parts[9],
+			command:   parts[0],
+			processID: parts[1],
+			user:      parts[2],
+			node:      parts[7],
+			name:      parts[8],
+			conType:   parts[9],
 		})
 	}
 
@@ -64,44 +64,57 @@ func checkProcesses() tea.Msg {
 }
 
 func scheduleKill(processes map[int]Process) tea.Cmd {
-
-	var kProcs []Process
-
-	// key is the PID of a killed process
-	killed := make(map[string]bool)
+	// key is the PID of a process to killed
+	toKill := make(map[string]Process)
 	return func() tea.Msg {
-
-		var wg sync.WaitGroup
 		for _, p := range processes {
-			curProc := p
 			mapMutex.Lock()
-			if killed[curProc.processID] {
+
+			if _, ok := toKill[p.processID]; ok {
 				mapMutex.Unlock()
 				continue
 			}
-			killed[curProc.processID] = true
+			toKill[p.processID] = p
 			mapMutex.Unlock()
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				// TODO: actually kill it and dont just fake it
-				//cmd := exec.Command("kill", "-TERM", curProc.processID)
-				//cmd.
-				//stdout, err := cmd.Output()
-				//if err != nil {
-				//	return errMsg{err}
-				//}
-
-
-				sliceMutex.Lock()
-				kProcs = append(kProcs, curProc)
-				sliceMutex.Unlock()
-			}()
 		}
-		wg.Wait()
-		return killedMsg(kProcs)
+
+		errs := make(chan error, 1)
+		done := make(chan []Process, 1)
+
+		// call a go routine which spawns other go routines and kills the process
+		go kill(toKill, done, errs)
+
+		select {
+		case err := <-errs:
+			return errMsg{err}
+		case pList := <-done:
+			return killedMsg(pList)
+		}
 	}
+}
+
+func kill(processes map[string]Process, done chan<- []Process, errs chan<- error) {
+	var wg sync.WaitGroup
+	kProcs := make([]Process, 0)
+	for _, process := range processes {
+		wg.Add(1)
+		p := process
+		go func() {
+			defer wg.Done()
+
+			cmd := exec.Command("kill", "-TERM", p.processID)
+			_, err := cmd.Output()
+			if err != nil {
+				errs <- err
+			}
+
+			sliceMutex.Lock()
+			kProcs = append(kProcs, p)
+			sliceMutex.Unlock()
+		}()
+	}
+	wg.Wait()
+	done <- kProcs
 }
 
 type killedMsg []Process
