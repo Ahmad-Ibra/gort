@@ -23,15 +23,16 @@ type Model struct {
 	cursor   int             // which item the cursor is pointing at
 	lines    []Process       // list of running processes that are running
 	selected map[int]Process // which items are selected, used to figure out which processes to kill
-	killed   map[int]Process // which items have actually been killed
+	killed   []Process 		// list of processes that have been killed
 
 	err error
 }
 
+var killedMutex = sync.RWMutex{}
+
 func CreateModel() Model {
 	return Model{
 		selected: make(map[int]Process),
-		killed:   make(map[int]Process),
 	}
 }
 
@@ -65,20 +66,19 @@ func checkProcesses() tea.Msg {
 
 func scheduleKill(processes map[int]Process) tea.Cmd {
 
-	killed := make(map[int]Process)
+	var killed []Process
 	return func() tea.Msg {
 
 		var wg sync.WaitGroup
-		for i, p := range processes {
+		for _, p := range processes {
 			curProc := p
-			curI := i
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				//fmt.Printf("\nkilling process %v with id %v\n", curProc.processID, curI)
 				// TODO: actually kill it and dont just fake it
-
-				killed[curI] = curProc
+				killedMutex.Lock()
+				killed = append(killed, curProc)
+				killedMutex.Unlock()
 			}()
 		}
 		wg.Wait()
@@ -86,7 +86,7 @@ func scheduleKill(processes map[int]Process) tea.Cmd {
 	}
 }
 
-type killedMsg map[int]Process
+type killedMsg []Process
 
 type processMsg []Process
 
@@ -106,9 +106,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.lines = msg
 		return m, nil
 	case killedMsg:
-		for k, v := range msg {
-			m.killed[k] = v
-		}
 		m.killed = msg
 		return m, nil
 	case errMsg:
