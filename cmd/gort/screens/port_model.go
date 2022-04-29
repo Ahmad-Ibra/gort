@@ -13,7 +13,6 @@ type Process struct {
 	command        string
 	processID      string
 	user           string
-	fileDescriptor string
 	node           string
 	name           string
 	conType        string
@@ -54,7 +53,6 @@ func checkProcesses() tea.Msg {
 			command:        parts[0],
 			processID:      parts[1],
 			user:           parts[2],
-			fileDescriptor: parts[3],
 			node:           parts[7],
 			name:           parts[8],
 			conType:        parts[9],
@@ -76,6 +74,14 @@ func scheduleKill(processes map[int]Process) tea.Cmd {
 			go func() {
 				defer wg.Done()
 				// TODO: actually kill it and dont just fake it
+				//cmd := exec.Command("kill", "-TERM", curProc.processID)
+				//cmd.
+				//stdout, err := cmd.Output()
+				//if err != nil {
+				//	return errMsg{err}
+				//}
+
+
 				killedMutex.Lock()
 				killed = append(killed, curProc)
 				killedMutex.Unlock()
@@ -166,6 +172,10 @@ func (m Model) View() string {
 			// The header
 			s = "Select process to kill with space bar. Once done hit enter to kill them:\n\n"
 
+			// Render the title
+			s += fmt.Sprintf("%5s %10s %7s %10s %4s %14s %s\n",
+				"", "COMMAND", "PID", "USER", "NODE", "", "NAME")
+
 			// make request for ports
 			// Iterate over our choices
 			for i, choice := range m.lines {
@@ -183,8 +193,8 @@ func (m Model) View() string {
 				}
 
 				// Render the row
-				s += fmt.Sprintf("%s [%s] %s %s, %s %s %s %s %s\n",
-					cursor, checked, choice.command, choice.processID, choice.user, choice.fileDescriptor, choice.node, choice.name, choice.conType)
+				s += fmt.Sprintf("%s [%s] %10s %7s %10s %4s %14s %s\n",
+					cursor, checked, choice.command, choice.processID, choice.user, choice.node, choice.conType, choice.name)
 			}
 			// The footer
 			s += "\nPress q to quit.\n"
@@ -195,10 +205,14 @@ func (m Model) View() string {
 		// The header
 		s = "The following processes have been killed:\n\n"
 
+		// Render the row
+		s += fmt.Sprintf("%10s %7s %10s %4s %14s %s\n",
+			"COMMAND", "PID", "USER", "NODE", "", "NAME")
+
 		for _, p := range m.killed {
 			// Render the row
-			s += fmt.Sprintf("%s %s, %s %s %s %s %s\n",
-				p.command, p.processID, p.user, p.fileDescriptor, p.node, p.name, p.conType)
+			s += fmt.Sprintf("%10s %7s %10s %4s %14s %s\n",
+				p.command, p.processID, p.user, p.node, p.conType, p.name)
 		}
 		// The footer
 		s += "\nPress any key to quit.\n"
