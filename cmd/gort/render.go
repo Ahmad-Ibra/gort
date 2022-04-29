@@ -22,7 +22,7 @@ func renderSelectView(m model) string {
 	s := fmt.Sprintf("Checking ports, this could take a moment... \n")
 
 	if len(m.lines) > 0 {
-		s = "Select process to kill with space bar. Once done hit enter to kill them:\n\n"
+		s = "Select any processes you'd like to kill:\n\n"
 		s += fmt.Sprintf("%5s %10s %7s %10s %4s %5s %18s %8s %4s %14s %s\n",
 			"", "COMMAND", "PID", "USER", "FD", "TYPE", "DEVICE", "SIZE/OFF", "NODE", "", "NAME")
 
@@ -39,6 +39,7 @@ func renderSelectView(m model) string {
 			s += fmt.Sprintf("%s [%s] %10s %7s %10s %4s %5s %18s %8s %4s %14s %s\n",
 				cursor, checked, p.command, p.pid, p.user, p.fd, p.ipType, p.device, p.sizeOff, p.node, p.conType, p.name)
 		}
+		s += "\nUse arrow keys or j and k to move cursor. Use space bar to select a choice. Use enter key to confirm choices."
 		s += "\nPress q to quit.\n"
 	}
 	return s
